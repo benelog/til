@@ -1,0 +1,5 @@
+# 이 저장소를 Netlify 사이트로도 연결해, til.benelog.net 을 Cloud Run 앞단의
+# 프록시로 쓴다. 빌드 없이 proxy/_redirects 한 장만 배포한다.
+[build]
+  publish = "proxy"
+  command = "echo 'proxy only - no build'"

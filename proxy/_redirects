@@ -1,0 +1,4 @@
+# til.benelog.net 으로 들어온 요청을 Cloud Run 으로 프록시한다.
+# 상태 코드 200 = 리다이렉트가 아닌 rewrite → 주소창은 til.benelog.net 유지.
+# deploy.sh 가 배포 후 아래 URL 을 실제 값으로 채운다.
+/*  https://REPLACE-WITH-CLOUD-RUN-URL/:splat  200

@@ -31,7 +31,19 @@ turso db tokens create til       # → 인증 토큰
 앱은 `libsql://` 을 자동으로 `https://` 로 바꿔서 **요청 단위 HTTP**로 붙습니다. 인스턴스가
 자주 뜨고 지는 서버리스 환경에서 커넥션 풀을 새로 맺을 필요가 없기 때문입니다.
 
-## 배포: Google Cloud Run
+## 배포
+
+`turso`, `gcloud` CLI 로그인이 끝났다면 스크립트 한 번이면 됩니다.
+
+```bash
+set -a; source .env; set +a
+GCP_PROJECT=<프로젝트ID> ./deploy.sh
+```
+
+Turso DB 생성 → Secret Manager 등록 → Cloud Run 배포 → `proxy/_redirects` 의
+프록시 대상 갱신까지 처리합니다. 아래는 스크립트가 실제로 수행하는 내용입니다.
+
+### Google Cloud Run
 
 ```bash
 gcloud run deploy til \
@@ -44,7 +56,7 @@ gcloud run deploy til \
   --set-secrets "TIL_PASSWORD=til-password:latest,TURSO_AUTH_TOKEN=turso-token:latest"
 ```
 
-비밀값은 Secret Manager 로:
+### 비밀값은 Secret Manager 로
 
 ```bash
 printf '%s' '실제-비밀번호' | gcloud secrets create til-password --data-file=-
@@ -56,12 +68,19 @@ printf '%s' '실제-turso-토큰' | gcloud secrets create turso-token --data-fil
 
 ## 도메인: Netlify 프록시로 til.benelog.net 연결
 
-Netlify에 `_redirects` 한 줄만 든 사이트를 만들고 도메인을 붙인 뒤, 전부 Cloud Run 으로 넘깁니다.
+이 저장소는 Netlify 사이트로도 연결됩니다. `netlify.toml` 이 빌드 없이 `proxy/` 만
+배포하고, `proxy/_redirects` 가 모든 요청을 Cloud Run 으로 넘깁니다.
 
 ```
-# _redirects
+# proxy/_redirects
 /*  https://til-xxxxxxxx.asia-northeast3.run.app/:splat  200
 ```
+
+Netlify 쪽 설정은 한 번만 하면 됩니다.
+
+1. Netlify에서 `benelog/til` 저장소로 새 프로젝트 생성 (빌드 설정은 `netlify.toml` 이 담당)
+2. Domain management → `til.benelog.net` 을 커스텀 도메인으로 추가
+3. 이후 `deploy.sh` 가 `proxy/_redirects` 를 갱신하므로, 커밋/푸시만 하면 반영됨
 
 `200` 상태 코드가 리다이렉트가 아니라 **프록시(rewrite)** 를 뜻합니다. 주소창은
 `til.benelog.net` 그대로 유지되고, DNS와 인증서는 지금 쓰는 다른 사이트들처럼
