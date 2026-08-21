@@ -18,74 +18,59 @@ go run .                      # http://localhost:8080
 
 `TURSO_DATABASE_URL` 을 비워두면 로컬 `til.db` 파일을 씁니다. Turso 없이도 그대로 개발 가능합니다.
 
-## 저장소: Turso 준비
+## 저장소
 
-```bash
-curl -sSfL https://get.tur.so/install.sh | bash
-turso auth signup
-turso db create til
-turso db show til --url          # → libsql://til-<org>.turso.io
-turso db tokens create til       # → 인증 토큰
-```
-
-앱은 `libsql://` 을 자동으로 `https://` 로 바꿔서 **요청 단위 HTTP**로 붙습니다. 인스턴스가
-자주 뜨고 지는 서버리스 환경에서 커넥션 풀을 새로 맺을 필요가 없기 때문입니다.
+Turso(libSQL)를 씁니다. `libsql://` 스킴은 웹소켓으로 붙지만, 앱이 이를 자동으로 `https://`
+로 바꿔 **요청 단위 HTTP**로 접속합니다. 인스턴스가 자주 뜨고 지는 환경에서 커넥션 풀을
+새로 맺을 필요가 없기 때문입니다. 드라이버(`libsql-client-go`)도 순수 Go라 CGO가 필요 없습니다.
 
 ## 배포
 
-`turso`, `gcloud` CLI 로그인이 끝났다면 스크립트 한 번이면 됩니다.
+### 1. Turso 데이터베이스
 
 ```bash
-set -a; source .env; set +a
-GCP_PROJECT=<프로젝트ID> ./deploy.sh
+turso auth login
+./setup-db.sh          # DB 생성 후 등록할 환경변수를 출력합니다
 ```
 
-Turso DB 생성 → Secret Manager 등록 → Cloud Run 배포 → `proxy/_redirects` 의
-프록시 대상 갱신까지 처리합니다. 아래는 스크립트가 실제로 수행하는 내용입니다.
+### 2. Northflank에 앱 배포
 
-### Google Cloud Run
+Northflank 무료 티어는 서비스 2개 + 잡 2개 + addon 1개를 상시 무료로 제공하고,
+카드 등록이 필요 없으며 컨테이너가 잠들지 않습니다(콜드스타트 없음).
 
-```bash
-gcloud run deploy til \
-  --source . \
-  --region asia-northeast3 \
-  --allow-unauthenticated \
-  --min-instances 0 --max-instances 2 \
-  --cpu 1 --memory 256Mi \
-  --set-env-vars "TZ=Asia/Seoul,TURSO_DATABASE_URL=libsql://til-<org>.turso.io" \
-  --set-secrets "TIL_PASSWORD=til-password:latest,TURSO_AUTH_TOKEN=turso-token:latest"
-```
+1. [northflank.com](https://northflank.com) 가입 후 프로젝트 생성 (리전은 가까운 곳)
+2. **Create new service → Combined service** (빌드 + 배포를 한 서비스에서 처리)
+3. GitHub 계정을 연결하고 `benelog/til` 저장소, `main` 브랜치 선택
+4. Build → **Dockerfile**, 경로는 `/Dockerfile`
+5. Networking → 포트 `8080`, HTTP, **Publicly exposed** 체크
+6. Health check → `GET /healthz`
+7. Environment variables 에 `setup-db.sh` 가 출력한 값 등록
+   (`TURSO_AUTH_TOKEN` 과 `TIL_PASSWORD` 는 secret 으로)
+8. 배포 후 발급되는 `https://<service>--<project>.code.run` 주소를 확인
 
-### 비밀값은 Secret Manager 로
+### 3. til.benelog.net 연결
 
-```bash
-printf '%s' '실제-비밀번호' | gcloud secrets create til-password --data-file=-
-printf '%s' '실제-turso-토큰' | gcloud secrets create turso-token --data-file=-
-```
-
-`--min-instances 0` 이라 안 쓸 때는 과금이 없습니다. Cloud Run 상시 무료 한도는
-월 200만 요청 / 36만 GB-초 / 18만 vCPU-초로, 개인 TIL 트래픽은 여기 한참 못 미칩니다.
-
-## 도메인: Netlify 프록시로 til.benelog.net 연결
-
-이 저장소는 Netlify 사이트로도 연결됩니다. `netlify.toml` 이 빌드 없이 `proxy/` 만
-배포하고, `proxy/_redirects` 가 모든 요청을 Cloud Run 으로 넘깁니다.
+`proxy/_redirects` 의 대상 주소를 2단계에서 받은 URL 로 바꾸고 커밋합니다.
 
 ```
-# proxy/_redirects
-/*  https://til-xxxxxxxx.asia-northeast3.run.app/:splat  200
+/*  https://<service>--<project>.code.run/:splat  200
 ```
 
-Netlify 쪽 설정은 한 번만 하면 됩니다.
+Netlify 쪽은 한 번만 설정하면 됩니다.
 
-1. Netlify에서 `benelog/til` 저장소로 새 프로젝트 생성 (빌드 설정은 `netlify.toml` 이 담당)
+1. Netlify에서 `benelog/til` 저장소로 새 프로젝트 생성
+   (빌드 설정은 저장소의 `netlify.toml` 이 담당 — 빌드 없이 `proxy/` 만 배포)
 2. Domain management → `til.benelog.net` 을 커스텀 도메인으로 추가
-3. 이후 `deploy.sh` 가 `proxy/_redirects` 를 갱신하므로, 커밋/푸시만 하면 반영됨
+   (benelog.net DNS를 Netlify가 관리 중이라 레코드는 자동 생성됨)
+3. 이후 `proxy/_redirects` 를 고쳐 푸시하면 백엔드 주소가 바뀝니다
 
-`200` 상태 코드가 리다이렉트가 아니라 **프록시(rewrite)** 를 뜻합니다. 주소창은
-`til.benelog.net` 그대로 유지되고, DNS와 인증서는 지금 쓰는 다른 사이트들처럼
-Netlify가 계속 관리합니다. 무료 플랜에서 대역폭(월 100GB)만 소비합니다.
+상태 코드 `200` 은 리다이렉트가 아니라 **rewrite(프록시)** 라서, 주소창은
+`til.benelog.net` 그대로 유지됩니다.
 
+> Cloud Run 을 쓰지 않는 이유: 무료 한도를 쓰더라도 **열려 있는 결제 계정 연결이 필수**인데,
+> 현재 GCP 결제 계정이 닫혀 있습니다. 다시 열면 `--source .` 로 이 Dockerfile 을 그대로
+> 배포할 수 있습니다.
+>
 > Netlify Functions 로 직접 돌리지 않는 이유: Go 함수는 Lambda 호환 모드로만 작성 가능한데,
 > 이 모드는 **2027년 7월 1일부로 배포가 거부**됩니다. 공식 이주 경로인
 > `@netlify/aws-lambda-compat` 은 JS 전용이라 Go 에는 대안이 없습니다.
