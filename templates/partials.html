@@ -1,0 +1,53 @@
+{{define "entry"}}
+<article class="entry" id="entry-{{.ID}}">
+  {{if .Title}}<h2 class="title">{{.Title}}</h2>{{end}}
+  <p class="meta">
+    <time>{{.CreatedAt}}</time>
+    {{if .Edited}}<span class="edited">{{.UpdatedAt}} 수정됨</span>{{end}}
+    {{if .CanEdit}}
+    <span class="actions">
+      <button class="link" hx-get="/entries/{{.ID}}/edit" hx-target="#entry-{{.ID}}" hx-swap="outerHTML">수정</button>
+      <button class="link danger" hx-delete="/entries/{{.ID}}" hx-target="#entry-{{.ID}}" hx-swap="outerHTML"
+              hx-confirm="이 기록을 삭제할까요?">삭제</button>
+    </span>
+    {{end}}
+  </p>
+  <div class="md">{{.HTML}}</div>
+</article>
+{{end}}
+
+{{define "entry-form"}}
+<article class="entry editing" id="entry-{{.ID}}">
+  <form class="editor" hx-put="/entries/{{.ID}}" hx-target="#entry-{{.ID}}" hx-swap="outerHTML">
+    <input name="title" value="{{.Title}}" placeholder="제목 (선택)" autocomplete="off">
+    <textarea name="body" rows="10" spellcheck="false"
+              hx-post="/preview" hx-trigger="keyup changed delay:400ms"
+              hx-target="#preview-{{.ID}}" hx-swap="innerHTML">{{.Body}}</textarea>
+    <div class="preview md" id="preview-{{.ID}}">{{.HTML}}</div>
+    <div class="row">
+      <button class="primary" type="submit">저장</button>
+      <button class="link" type="button" hx-get="/entries/{{.ID}}" hx-target="#entry-{{.ID}}" hx-swap="outerHTML">취소</button>
+    </div>
+  </form>
+</article>
+{{end}}
+
+{{define "new-form-fields"}}
+<form class="editor" hx-post="/entries" hx-target="#entries" hx-swap="afterbegin">
+  <input name="title" placeholder="제목 (선택)" autocomplete="off">
+  <textarea name="body" rows="6" spellcheck="false" placeholder="오늘 배운 것을 마크다운으로 적어보세요"
+            hx-post="/preview" hx-trigger="keyup changed delay:400ms"
+            hx-target="#preview-new" hx-swap="innerHTML"></textarea>
+  <div class="preview md" id="preview-new"></div>
+  <div class="row"><button class="primary" type="submit">저장</button></div>
+</form>
+{{end}}
+
+{{define "new-form"}}
+<section class="card" id="new-form">{{template "new-form-fields"}}</section>
+{{end}}
+
+{{define "created"}}
+{{template "entry" .}}
+<section class="card" id="new-form" hx-swap-oob="true">{{template "new-form-fields"}}</section>
+{{end}}
