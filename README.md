@@ -150,8 +150,8 @@ til  CNAME  ghs.googlehosted.com.
 > | --- | --- | --- |
 > | 서울 `run.app` 직접 호출 | 99.7ms | 6.1ms |
 > | 도쿄 `run.app` 직접 호출 | 98.8ms | 6.0ms |
-> | `til-tokyo.benelog.net` (도메인 매핑, CNAME → `ghs.googlehosted.com.`) | 284.1ms | 62.9ms |
-> | `til.benelog.net` (당시 운영 경로, Netlify 프록시) | 347.1ms | 71.7ms |
+> | 도쿄 서비스 + Cloud Run 도메인 매핑 (CNAME → `ghs.googlehosted.com.`) | 284.1ms | 62.9ms |
+> | 서울 서비스 + Netlify 프록시 (당시 운영 경로) | 347.1ms | 71.7ms |
 >
 > 도메인 매핑 경로가 Netlify 경로보다 63.0ms 빨랐지만 `run.app` 수준으로 짧아지지는 않습니다.
 > 커스텀 도메인 진입 경로 자체가 같은 서비스의 `run.app`보다 185.3ms를 더합니다.
@@ -161,7 +161,7 @@ til  CNAME  ghs.googlehosted.com.
 > | 경로 | 전체 중앙값 | TCP 중앙값 |
 > | --- | --- | --- |
 > | 도쿄 `run.app` 직접 호출 | 98.5ms | 5.7ms |
-> | `til.benelog.net` (전환 후 운영 경로, CNAME → `ghs.googlehosted.com.`) | 224.2ms | 54.2ms |
+> | 도쿄 서비스 + Cloud Run 도메인 매핑 (전환 후 운영 경로) | 224.2ms | 54.2ms |
 
 ### 다른 배포처를 검토했다면
 
