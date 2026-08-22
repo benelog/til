@@ -1,5 +1,9 @@
-# 이 저장소를 Netlify 사이트로도 연결해, til.benelog.net 을 Cloud Run 앞단의
-# 프록시로 쓴다. 빌드 없이 proxy/_redirects 한 장만 배포한다.
+# 이 저장소는 Netlify 사이트로도 연결돼 있다.
+# 2026-08-22에 til.benelog.net 을 도쿄 Cloud Run(til-tokyo, asia-northeast1)의
+# 커스텀 도메인 매핑으로 직접 옮기면서, 이 Netlify 프록시는 운영 경로가 아니라
+# 롤백 경로로 남겼다. DNS 를 Netlify 레코드로 되돌리면 proxy/_redirects 한 장이
+# 그대로 다시 동작한다(대상은 서울 서비스).
+# 빌드 없이 proxy/_redirects 한 장만 배포한다.
 [build]
   publish = "proxy"
   command = "echo 'proxy only - no build'"

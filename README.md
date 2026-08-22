@@ -36,9 +36,14 @@ Turso(libSQL)를 씁니다. `libsql://` 스킴은 웹소켓으로 붙지만, 앱
 
 ## 배포
 
-배포처는 **Google Cloud Run**(`asia-northeast3`, 서울)이고, 저장소는 **Turso**
-(`aws-ap-northeast-1`, 도쿄), 도메인은 **Netlify 프록시**로 붙입니다. 개인 앱 트래픽은
-Cloud Run 무료 한도(월 2M 요청 / 360,000 GiB-초) 안에서 끝나 실질 비용은 $0 입니다.
+배포처는 **Google Cloud Run**(`asia-northeast1`, 도쿄)이고, 저장소는 **Turso**
+(`aws-ap-northeast-1`, 도쿄), 도메인은 **Cloud Run 커스텀 도메인 매핑**으로 직접 붙입니다.
+개인 앱 트래픽은 Cloud Run 무료 한도(월 2M 요청 / 360,000 GiB-초) 안에서 끝나 실질 비용은 $0 입니다.
+
+> 2026-08-22 이전에는 서울 서비스(`til`, `asia-northeast3`) + Netlify 프록시 구성이었습니다.
+> 서울 리전은 Cloud Run 직접 도메인 매핑을 지원하지 않아 프록시가 필요했는데, 측정 결과
+> 프록시가 응답 시간의 상당 부분을 차지해 도쿄 서비스 + 직접 매핑으로 옮겼습니다.
+> 서울 서비스와 Netlify 프록시 설정은 롤백 경로로 남겨 뒀습니다.
 
 > 앞서 Back4app Containers 무료 티어를 썼다가 접었습니다. 임시 URL이 30~60분 뒤
 > 만료되면서 배포가 통째로 파괴되어 상시 운영이 불가능했습니다. 아래 "다른 배포처를
@@ -80,13 +85,16 @@ TIL_PASSWORD: "..."
 TZ: "Asia/Seoul"
 EOF
 
-gcloud run deploy til --source . --region asia-northeast3 \
+gcloud run deploy til-tokyo --source . --region asia-northeast1 \
   --allow-unauthenticated --env-vars-file /tmp/run-env.yaml
 ```
 
 `--source .` 가 Cloud Build로 이 저장소의 Dockerfile을 빌드해 배포합니다. **환경변수는
-서비스에 남으므로 다음 배포부터는 `--env-vars-file` 없이** `gcloud run deploy til --source .`
-만 하면 됩니다.
+서비스에 남으므로 다음 배포부터는 `--env-vars-file` 없이** `gcloud run deploy til-tokyo --source .
+--region asia-northeast1` 만 하면 됩니다.
+
+> 서울 서비스 `til`(`asia-northeast3`)도 롤백용으로 남아 있습니다. 롤백을 대비해 코드가
+> 크게 바뀌면 서울 서비스에도 같은 이미지를 한 번 더 배포해 두는 편이 안전합니다.
 
 > 자동 배포는 걸려 있지 않습니다. `main` 에 푸시해도 재배포되지 않고, 위 명령을 직접
 > 실행해야 합니다. (Cloud Build 트리거를 붙이면 자동화할 수 있습니다.)
@@ -97,31 +105,63 @@ gcloud run deploy til --source . --region asia-northeast3 \
 
 ### 3. til.benelog.net 연결
 
-이 저장소는 Netlify 사이트로도 연결됩니다. `netlify.toml` 이 빌드 없이 `proxy/` 만
-배포하고, `proxy/_redirects` 가 모든 요청을 컨테이너로 넘깁니다.
+Cloud Run의 커스텀 도메인 매핑으로 직접 붙입니다. 먼저 Google Search Console에서
+`benelog.net` 소유권을 확인해야 하고, 매핑은 도쿄(`asia-northeast1`)처럼 이 기능을
+지원하는 리전에서만 만들 수 있습니다.
+
+```bash
+gcloud beta run domain-mappings create \
+  --domain=til.benelog.net --service=til-tokyo \
+  --region=asia-northeast1 --project=benelog
+```
+
+그 다음 DNS(Netlify가 `benelog.net` zone을 관리)에 매핑이 안내한 레코드 하나를 둡니다.
+
+```
+til  CNAME  ghs.googlehosted.com.
+```
+
+같은 이름의 `NETLIFY` / `NETLIFYv6` 레코드가 있으면 먼저 지워야 합니다. CNAME은 같은
+이름의 다른 레코드와 공존할 수 없습니다. 관리형 인증서는 DNS가 `ghs.googlehosted.com.`
+을 가리킨 뒤에야 발급되고, 그동안 해당 호스트는 TLS 오류를 냅니다. 실제 전환에서는
+1시간 이내에 발급됐지만 Google 안내상 최대 24시간이 걸릴 수 있습니다.
+
+> ⚠️ Cloud Run 직접 도메인 매핑은 **Preview 기능**이고 Google도 프로덕션 사용을
+> 권장하지 않습니다. 개인 앱이라 응답 시간을 우선해 감수한 선택입니다.
+
+#### 롤백 경로로 남긴 Netlify 프록시
+
+이 저장소는 Netlify 사이트로도 연결돼 있습니다. `netlify.toml` 이 빌드 없이 `proxy/` 만
+배포하고, `proxy/_redirects` 가 모든 요청을 서울 서비스로 넘깁니다.
 
 ```
 /*  https://til-788537242173.asia-northeast3.run.app/:splat  200
 ```
 
-1. Netlify에서 `benelog/til` 저장소로 새 프로젝트 생성
-2. Domain management → `til.benelog.net` 을 커스텀 도메인으로 추가
-   (benelog.net DNS를 Netlify가 관리 중이라 레코드는 자동 생성됨)
-3. 백엔드 주소가 바뀌면 `proxy/_redirects` 만 고쳐서 푸시
+상태 코드 `200` 은 리다이렉트가 아니라 **rewrite(프록시)** 라서 주소창은
+`til.benelog.net` 그대로 유지됩니다. 지금은 운영 경로가 아니지만, DNS를 원래
+`NETLIFY` / `NETLIFYv6` 레코드(값 `til-benelog.netlify.app`, TTL 3600)로 되돌리면
+이 한 장으로 즉시 복구됩니다.
 
-상태 코드 `200` 은 리다이렉트가 아니라 **rewrite(프록시)** 라서, 주소창은
-`til.benelog.net` 그대로 유지됩니다.
-
-> ⚠️ **이 프록시가 지연의 대부분을 차지합니다.** 한국에서 같은 시점에 교차 측정한 값:
+> 2026-08-22 한국의 같은 머신에서 워밍업 1회 후 20회씩 교차 측정한 전체 응답 시간
+> 중앙값입니다.
 >
-> | 경로 | `GET /` | TCP 핸드셰이크 |
+> | 경로 | 전체 중앙값 | TCP 중앙값 |
 > | --- | --- | --- |
-> | Cloud Run 직결 | 92~109ms | 5.5ms |
-> | til.benelog.net (Netlify 경유) | 328~384ms | 71ms |
+> | 서울 `run.app` 직접 호출 | 99.7ms | 6.1ms |
+> | 도쿄 `run.app` 직접 호출 | 98.8ms | 6.0ms |
+> | `til-tokyo.benelog.net` (도메인 매핑, CNAME → `ghs.googlehosted.com.`) | 284.1ms | 62.9ms |
+> | `til.benelog.net` (당시 운영 경로, Netlify 프록시) | 347.1ms | 71.7ms |
 >
-> Netlify의 가장 가까운 PoP가 71ms 거리라, 서울 리전으로 얻은 이득을 프록시가 도로
-> 까먹습니다. 없애려면 Cloud Run 도메인 매핑으로 직접 붙여야 합니다. Back4app의 커스텀 도메인 기능은 유료지만,
-이 방식은 무료 플랜으로도 커스텀 도메인을 쓸 수 있게 해줍니다.
+> 도메인 매핑 경로가 Netlify 경로보다 63.0ms 빨랐지만 `run.app` 수준으로 짧아지지는 않습니다.
+> 커스텀 도메인 진입 경로 자체가 같은 서비스의 `run.app`보다 185.3ms를 더합니다.
+>
+> 전환(2026-08-22 20:22 KST) 직후 같은 방식으로 다시 재면 이렇습니다.
+>
+> | 경로 | 전체 중앙값 | TCP 중앙값 |
+> | --- | --- | --- |
+> | 도쿄 `run.app` 직접 호출 | 98.5ms | 5.7ms |
+> | `til.benelog.net` (전환 후 운영 경로, CNAME → `ghs.googlehosted.com.`) | 224.2ms | 54.2ms |
 
 ### 다른 배포처를 검토했다면
 
