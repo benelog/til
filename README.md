@@ -26,54 +26,61 @@ Turso(libSQL)를 씁니다. `libsql://` 스킴은 웹소켓으로 붙지만, 앱
 
 ## 배포
 
+배포처는 **Back4app Containers** 무료 티어(256MB RAM, 0.25 CPU, 카드 불필요)이고,
+저장소는 **Turso**(aws-us-east-2), 도메인은 **Netlify 프록시**로 붙입니다.
+
 ### 1. Turso 데이터베이스
 
 ```bash
 turso auth login
-./setup-db.sh          # DB 생성 후 등록할 환경변수를 출력합니다
+./setup-db.sh          # DB 생성 후 접속 정보를 .env.deploy 에 기록
 ```
 
-### 2. Northflank에 앱 배포
+### 2. Back4app Containers
 
-Northflank 무료 티어는 서비스 2개 + 잡 2개 + addon 1개를 상시 무료로 제공하고,
-카드 등록이 필요 없으며 컨테이너가 잠들지 않습니다(콜드스타트 없음).
+1. [containers.back4app.com](https://containers.back4app.com) 에서 GitHub 계정으로 가입
+2. New App → `benelog/til` 저장소, `main` 브랜치, Build type은 **Dockerfile**
+3. Settings → Environment Variables 에 아래 4개 등록 후 Save (저장 시 자동 재배포)
 
-1. [northflank.com](https://northflank.com) 가입 후 프로젝트 생성 (리전은 가까운 곳)
-2. **Create new service → Combined service** (빌드 + 배포를 한 서비스에서 처리)
-3. GitHub 계정을 연결하고 `benelog/til` 저장소, `main` 브랜치 선택
-4. Build → **Dockerfile**, 경로는 `/Dockerfile`
-5. Networking → 포트 `8080`, HTTP, **Publicly exposed** 체크
-6. Health check → `GET /healthz`
-7. Environment variables 에 `setup-db.sh` 가 출력한 값 등록
-   (`TURSO_AUTH_TOKEN` 과 `TIL_PASSWORD` 는 secret 으로)
-8. 배포 후 발급되는 `https://<service>--<project>.code.run` 주소를 확인
+   | 이름 | 값 |
+   | --- | --- |
+   | `TURSO_DATABASE_URL` | `.env.deploy` 의 값 |
+   | `TURSO_AUTH_TOKEN` | `.env.deploy` 의 값 |
+   | `TIL_PASSWORD` | 쓰기 비밀번호 |
+   | `TZ` | `Asia/Seoul` |
+
+`main` 에 푸시하면 자동으로 재빌드·재배포됩니다.
+
+> 토큰을 붙여넣을 때 앞뒤에 `=` 나 공백이 섞이지 않도록 주의하세요. 값이 잘못되면
+> 컨테이너 로그에 `JWT error` 또는 `401 Unauthorized` 가 남습니다.
+> `turso db destroy` 후 재생성하면 **이전 토큰은 모두 무효**가 되므로 다시 발급해야 합니다.
 
 ### 3. til.benelog.net 연결
 
-`proxy/_redirects` 의 대상 주소를 2단계에서 받은 URL 로 바꾸고 커밋합니다.
+이 저장소는 Netlify 사이트로도 연결됩니다. `netlify.toml` 이 빌드 없이 `proxy/` 만
+배포하고, `proxy/_redirects` 가 모든 요청을 컨테이너로 넘깁니다.
 
 ```
-/*  https://<service>--<project>.code.run/:splat  200
+/*  https://til-nsh62xv6.b4a.run/:splat  200
 ```
-
-Netlify 쪽은 한 번만 설정하면 됩니다.
 
 1. Netlify에서 `benelog/til` 저장소로 새 프로젝트 생성
-   (빌드 설정은 저장소의 `netlify.toml` 이 담당 — 빌드 없이 `proxy/` 만 배포)
 2. Domain management → `til.benelog.net` 을 커스텀 도메인으로 추가
    (benelog.net DNS를 Netlify가 관리 중이라 레코드는 자동 생성됨)
-3. 이후 `proxy/_redirects` 를 고쳐 푸시하면 백엔드 주소가 바뀝니다
+3. 백엔드 주소가 바뀌면 `proxy/_redirects` 만 고쳐서 푸시
 
 상태 코드 `200` 은 리다이렉트가 아니라 **rewrite(프록시)** 라서, 주소창은
-`til.benelog.net` 그대로 유지됩니다.
+`til.benelog.net` 그대로 유지됩니다. Back4app의 커스텀 도메인 기능은 유료지만,
+이 방식은 무료 플랜으로도 커스텀 도메인을 쓸 수 있게 해줍니다.
 
-> Cloud Run 을 쓰지 않는 이유: 무료 한도를 쓰더라도 **열려 있는 결제 계정 연결이 필수**인데,
-> 현재 GCP 결제 계정이 닫혀 있습니다. 다시 열면 `--source .` 로 이 Dockerfile 을 그대로
-> 배포할 수 있습니다.
->
-> Netlify Functions 로 직접 돌리지 않는 이유: Go 함수는 Lambda 호환 모드로만 작성 가능한데,
-> 이 모드는 **2027년 7월 1일부로 배포가 거부**됩니다. 공식 이주 경로인
-> `@netlify/aws-lambda-compat` 은 JS 전용이라 Go 에는 대안이 없습니다.
+### 다른 배포처를 검토했다면
+
+- **Netlify Functions (Go)**: Go 함수는 Lambda 호환 모드로만 작성 가능한데, 이 모드는
+  **2027년 7월 1일부로 배포가 거부**됩니다. 이주 경로인 `@netlify/aws-lambda-compat` 은
+  JS 전용이라 Go 에는 대안이 없습니다.
+- **Google Cloud Run**: 무료 한도만 쓰더라도 **열려 있는 결제 계정 연결이 필수**입니다.
+- **Northflank**: 무료 티어라도 리소스 생성 시 **카드 등록을 요구**합니다. 무료 리전도
+  us-central 과 europe-west 뿐입니다.
 
 ## 환경변수
 

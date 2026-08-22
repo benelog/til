@@ -15,13 +15,16 @@ fi
 DB_URL=$(turso db show "$DB_NAME" --url)
 DB_TOKEN=$(turso db tokens create "$DB_NAME")
 
-cat <<OUT
-
-배포처(Northflank 등)에 등록할 환경변수
-────────────────────────────────────────────────
-TURSO_DATABASE_URL = ${DB_URL}
-TURSO_AUTH_TOKEN   = ${DB_TOKEN}        ← 시크릿으로 등록
-TIL_PASSWORD       = <쓰기 비밀번호>     ← 시크릿으로 등록
-TZ                 = Asia/Seoul
-────────────────────────────────────────────────
+# 토큰이 터미널/로그에 남지 않도록 파일로만 쓴다 (.gitignore 대상)
+umask 077
+cat > .env.deploy <<OUT
+# 배포처에 등록할 환경변수. 커밋 금지.
+TURSO_DATABASE_URL=${DB_URL}
+TURSO_AUTH_TOKEN=${DB_TOKEN}
+TZ=Asia/Seoul
 OUT
+
+echo
+echo "데이터베이스 URL: ${DB_URL}"
+echo "인증 토큰을 포함한 환경변수를 .env.deploy 에 기록했습니다."
+echo "TIL_PASSWORD 는 .env 의 값을 함께 등록하세요."
