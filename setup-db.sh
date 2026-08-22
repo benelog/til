@@ -3,11 +3,20 @@
 # 사전 조건: turso auth login
 set -euo pipefail
 
-DB_NAME="${DB_NAME:-til}"
+DB_NAME="${DB_NAME:-til-tokyo}"
+GROUP="${GROUP:-tokyo}"
+# 앱이 뜨는 리전에 맞춘다. 앱은 서울(asia-northeast3), DB는 가장 가까운 도쿄.
+# 한국에서 재보면 오하이오 DB 는 GET / 197~220ms, 도쿄는 38~45ms 였다.
+LOCATION="${LOCATION:-aws-ap-northeast-1}"
+
+if ! turso group show "$GROUP" >/dev/null 2>&1; then
+  echo "Turso 그룹 생성: $GROUP ($LOCATION)"
+  turso group create "$GROUP" --location "$LOCATION"
+fi
 
 if ! turso db show "$DB_NAME" >/dev/null 2>&1; then
-  echo "Turso 데이터베이스 생성: $DB_NAME"
-  turso db create "$DB_NAME"
+  echo "Turso 데이터베이스 생성: $DB_NAME (group: $GROUP)"
+  turso db create "$DB_NAME" --group "$GROUP"
 else
   echo "이미 존재하는 데이터베이스를 사용합니다: $DB_NAME"
 fi
