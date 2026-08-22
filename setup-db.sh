@@ -37,3 +37,7 @@ echo
 echo "데이터베이스 URL: ${DB_URL}"
 echo "인증 토큰을 포함한 환경변수를 .env.deploy 에 기록했습니다."
 echo "TIL_PASSWORD 는 .env 의 값을 함께 등록하세요."
+echo
+echo "이 스크립트는 빈 DB를 만듭니다. 다른 리전의 기존 DB에서 옮겨오려면"
+echo "  turso db shell <기존DB> .dump > dump.sql && turso db shell $DB_NAME < dump.sql"
+echo "로 밀어 넣은 뒤 양쪽 행 수를 대조하세요."
