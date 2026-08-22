@@ -52,6 +52,23 @@ turso auth login
 
 `main` 에 푸시하면 자동으로 재빌드·재배포됩니다.
 
+> ⚠️ **무료 플랜의 주소는 임시입니다.** 대시보드에 "URL is temporary and will be live for
+> 60 minutes" 라고 적혀 있고, 시간이 지나면 배포가 통째로 파괴됩니다. 실제 로그:
+>
+> ```
+> 2026-08-21T23:59:20Z  SYSTEM  DEPLOYMENT READY
+> 2026-08-22T00:27:12Z  SYSTEM  The Back4app custom domain has expired for free plan
+> 2026-08-22T00:27:12Z  SYSTEM  COOLING DOWN...
+> 2026-08-22T00:28:12Z  SYSTEM  DEPLOYMENT DESTROYED
+> ```
+>
+> 만료되면 `til-xxxxxxxx.b4a.run` 이 존재하지 않는 앱과 **똑같은** `404 not found` 를
+> 돌려주므로, 컨테이너가 죽은 것(502/503)과 헷갈리기 쉽습니다. 게다가 **재배포할 때마다
+> 접미사가 바뀌므로** `proxy/_redirects` 를 매번 고쳐야 합니다.
+>
+> 즉 이 조합은 잠깐 띄워 확인하는 용도이고, `til.benelog.net` 상시 운영은 유료 플랜
+> ($5/월, 0.5 CPU · 512MB) 이나 다른 배포처가 필요합니다.
+
 > 토큰을 붙여넣을 때 앞뒤에 `=` 나 공백이 섞이지 않도록 주의하세요. 값이 잘못되면
 > 컨테이너 로그에 `JWT error` 또는 `401 Unauthorized` 가 남습니다.
 > `turso db destroy` 후 재생성하면 **이전 토큰은 모두 무효**가 되므로 다시 발급해야 합니다.
@@ -62,7 +79,7 @@ turso auth login
 배포하고, `proxy/_redirects` 가 모든 요청을 컨테이너로 넘깁니다.
 
 ```
-/*  https://til-nsh62xv6.b4a.run/:splat  200
+/*  https://til-xu9uffq7.b4a.run/:splat  200
 ```
 
 1. Netlify에서 `benelog/til` 저장소로 새 프로젝트 생성
