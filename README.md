@@ -6,7 +6,7 @@ Markdown으로 쓰는 간단한 Today I Learned 기록장.
 - **Turso (libSQL)** 저장소, 로컬은 SQLite 파일로 동일 코드 동작
 - 읽기는 공개, 쓰기/수정/삭제는 단일 비밀번호 세션으로 보호
 - **PWA** — 홈 화면에 설치 가능하고, 한 번 본 화면은 오프라인에서도 열림
-- 의존성 전부 순수 Go → CGO 없는 정적 바이너리 (약 12MB distroless 이미지)
+- 의존성 전부 순수 Go → CGO 없는 정적 바이너리 (28MB distroless 이미지)
 
 ## 로컬 실행
 
