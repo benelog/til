@@ -163,6 +163,22 @@ til  CNAME  ghs.googlehosted.com.
 > | 도쿄 `run.app` 직접 호출 | 98.5ms | 5.7ms |
 > | 도쿄 서비스 + Cloud Run 도메인 매핑 (전환 후 운영 경로) | 224.2ms | 54.2ms |
 
+#### 응답 압축
+
+Cloud Run 앞단의 Google Frontend 는 컨테이너 응답을 대신 압축해주지 않습니다.
+Netlify 프록시를 쓸 때는 Netlify 가 Brotli 를 자동으로 걸어줬는데, 직접 매핑으로
+바꾸면서 그게 사라졌습니다. 한국으로 나가는 전송에는 무료 구간이 없어서
+`compress.go` 의 미들웨어로 앱이 직접 gzip 을 겁니다.
+
+| 응답 | 원본 | gzip |
+| --- | --- | --- |
+| `GET /` | 1,499 B | 768 B |
+| `/static/htmx.min.js` | 50,917 B | 16,435 B |
+
+이미 `Content-Encoding` 이 붙은 응답과 PNG 같은 압축 완료 형식, 512 B 미만의 작은
+응답은 건드리지 않습니다. 앞단에 프록시를 다시 끼우더라도 프록시는 이미 인코딩된
+응답을 다시 압축하지 않으므로 이중 압축이 되지 않습니다.
+
 ### 다른 배포처를 검토했다면
 
 - **Netlify Functions (Go)**: Go 함수는 Lambda 호환 모드로만 작성 가능한데, 이 모드는

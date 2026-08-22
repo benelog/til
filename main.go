@@ -121,7 +121,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              ":" + firstNonEmpty(os.Getenv("PORT"), "8080"),
-		Handler:           logRequests(mux),
+		Handler:           logRequests(compressResponses(mux)),
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      30 * time.Second,
 	}
