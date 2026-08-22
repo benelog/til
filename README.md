@@ -51,40 +51,48 @@ turso auth login
 ./setup-db.sh          # DB 생성 후 접속 정보를 .env.deploy 에 기록
 ```
 
-### 2. Back4app Containers
+### 2. Cloud Run
 
-1. [containers.back4app.com](https://containers.back4app.com) 에서 GitHub 계정으로 가입
-2. New App → `benelog/til` 저장소, `main` 브랜치, Build type은 **Dockerfile**
-3. Settings → Environment Variables 에 아래 4개 등록 후 Save (저장 시 자동 재배포)
+```bash
+gcloud auth login
+gcloud config set project <project>
+gcloud billing projects link <project> --billing-account=<ACCOUNT_ID>   # 무료 한도만 써도 필수
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+```
 
-   | 이름 | 값 |
-   | --- | --- |
-   | `TURSO_DATABASE_URL` | `.env.deploy` 의 값 |
-   | `TURSO_AUTH_TOKEN` | `.env.deploy` 의 값 |
-   | `TIL_PASSWORD` | 쓰기 비밀번호 |
-   | `TZ` | `Asia/Seoul` |
+첫 배포는 **`PERMISSION_DENIED` 로 죽습니다.** Google이 기본 컴퓨트 서비스 계정의 빌드
+권한을 걷어낸 뒤 새 프로젝트에서 나는 증상입니다. 한 번만 부여하면 됩니다:
 
-`main` 에 푸시하면 자동으로 재빌드·재배포됩니다.
+```bash
+gcloud projects add-iam-policy-binding <project> \
+  --member=serviceAccount:<projectNumber>-compute@developer.gserviceaccount.com \
+  --role=roles/cloudbuild.builds.builder
+```
 
-> ⚠️ **무료 플랜의 주소는 임시입니다.** 대시보드에 "URL is temporary and will be live for
-> 60 minutes" 라고 적혀 있고, 시간이 지나면 배포가 통째로 파괴됩니다. 실제 로그:
->
-> ```
-> 2026-08-21T23:59:20Z  SYSTEM  DEPLOYMENT READY
-> 2026-08-22T00:27:12Z  SYSTEM  The Back4app custom domain has expired for free plan
-> 2026-08-22T00:27:12Z  SYSTEM  COOLING DOWN...
-> 2026-08-22T00:28:12Z  SYSTEM  DEPLOYMENT DESTROYED
-> ```
->
-> 만료되면 `til-xxxxxxxx.b4a.run` 이 존재하지 않는 앱과 **똑같은** `404 not found` 를
-> 돌려주므로, 컨테이너가 죽은 것(502/503)과 헷갈리기 쉽습니다. 게다가 **재배포할 때마다
-> 접미사가 바뀌므로** `proxy/_redirects` 를 매번 고쳐야 합니다.
->
-> 즉 이 조합은 잠깐 띄워 확인하는 용도이고, `til.benelog.net` 상시 운영은 유료 플랜
-> ($5/월, 0.5 CPU · 512MB) 이나 다른 배포처가 필요합니다.
+배포합니다. 환경변수는 `.env.deploy` 의 3개에 `TIL_PASSWORD` 를 더해 YAML 한 장으로
+넘깁니다 (커맨드라인에 토큰이 남지 않게):
+
+```bash
+cat > /tmp/run-env.yaml <<EOF
+TURSO_DATABASE_URL: "..."
+TURSO_AUTH_TOKEN: "..."
+TIL_PASSWORD: "..."
+TZ: "Asia/Seoul"
+EOF
+
+gcloud run deploy til --source . --region asia-northeast3 \
+  --allow-unauthenticated --env-vars-file /tmp/run-env.yaml
+```
+
+`--source .` 가 Cloud Build로 이 저장소의 Dockerfile을 빌드해 배포합니다. **환경변수는
+서비스에 남으므로 다음 배포부터는 `--env-vars-file` 없이** `gcloud run deploy til --source .`
+만 하면 됩니다.
+
+> 자동 배포는 걸려 있지 않습니다. `main` 에 푸시해도 재배포되지 않고, 위 명령을 직접
+> 실행해야 합니다. (Cloud Build 트리거를 붙이면 자동화할 수 있습니다.)
 
 > 토큰을 붙여넣을 때 앞뒤에 `=` 나 공백이 섞이지 않도록 주의하세요. 값이 잘못되면
-> 컨테이너 로그에 `JWT error` 또는 `401 Unauthorized` 가 남습니다.
+> 로그에 `JWT error` 또는 `401 Unauthorized` 가 남습니다.
 > `turso db destroy` 후 재생성하면 **이전 토큰은 모두 무효**가 되므로 다시 발급해야 합니다.
 
 ### 3. til.benelog.net 연결
@@ -120,8 +128,20 @@ turso auth login
 - **Netlify Functions (Go)**: Go 함수는 Lambda 호환 모드로만 작성 가능한데, 이 모드는
   **2027년 7월 1일부로 배포가 거부**됩니다. 이주 경로인 `@netlify/aws-lambda-compat` 은
   JS 전용이라 Go 에는 대안이 없습니다.
-- **Back4app Containers**: 카드 없이 배포되지만 무료 임시 URL이 만료되면 배포가 파괴되고
-  재배포마다 주소 접미사가 바뀝니다. 상시 운영 불가.
+- **Back4app Containers**: 카드 없이 Dockerfile 배포가 되고 콜드스타트도 없어서 잠깐
+  띄워 보여주기엔 좋습니다. 다만 무료 플랜의 주소가 임시라 만료되면 배포가 통째로
+  파괴됩니다. 실제 로그:
+
+  ```
+  2026-08-21T23:59:20Z  SYSTEM  DEPLOYMENT READY
+  2026-08-22T00:27:12Z  SYSTEM  The Back4app custom domain has expired for free plan
+  2026-08-22T00:27:12Z  SYSTEM  COOLING DOWN...
+  2026-08-22T00:28:12Z  SYSTEM  DEPLOYMENT DESTROYED
+  ```
+
+  만료된 `til-xxxxxxxx.b4a.run` 은 존재한 적 없는 서브도메인과 **똑같은** `404 not found`
+  를 돌려줘서 컨테이너 장애(502/503)와 구별되지 않습니다. 재배포하면 접미사가 바뀌어
+  `proxy/_redirects` 도 매번 고쳐야 합니다. 영구 URL은 $5/월부터.
 - **Google Cloud Run**: 무료 한도만 쓰더라도 **열려 있는 결제 계정 연결이 필수**입니다.
   (지금은 결제 계정을 연결해 이쪽을 씁니다. 사용량은 무료 한도 안입니다.)
 - **Northflank**: 무료 티어라도 리소스 생성 시 **카드 등록을 요구**합니다. 무료 리전도
