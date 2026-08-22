@@ -5,6 +5,7 @@ Markdown으로 쓰는 간단한 Today I Learned 기록장.
 - **Go** (표준 `net/http`, 외부 웹 프레임워크 없음) + **HTMX** — 페이지 새로고침 없이 작성/수정/삭제
 - **Turso (libSQL)** 저장소, 로컬은 SQLite 파일로 동일 코드 동작
 - 읽기는 공개, 쓰기/수정/삭제는 단일 비밀번호 세션으로 보호
+- **PWA** — 홈 화면에 설치 가능하고, 한 번 본 화면은 오프라인에서도 열림
 - 의존성 전부 순수 Go → CGO 없는 정적 바이너리 (약 12MB distroless 이미지)
 
 ## 로컬 실행
@@ -107,7 +108,26 @@ turso auth login
 | PUT | `/entries/{id}` | ✅ | 갱신된 항목 조각 |
 | DELETE | `/entries/{id}` | ✅ | 빈 본문 → htmx가 항목 제거 |
 | POST | `/preview` | ✅ | 마크다운 실시간 미리보기 |
+| GET | `/sw.js` | | 서비스 워커 (루트 스코프용) |
 | GET | `/healthz` | | `ok` |
+
+## PWA
+
+`static/manifest.webmanifest` 와 서비스 워커로 홈 화면 설치를 지원합니다.
+
+- **서비스 워커는 `/sw.js` 로 서빙합니다.** 워커의 제어 범위는 스크립트가 놓인 경로 아래로
+  제한되므로, `/static/sw.js` 였다면 정적 파일만 다룰 수 있습니다. 파일 자체는 `static/`
+  안에 두고 `serveServiceWorker` 가 루트 경로에서 내려줍니다.
+- **정적 자원은 stale-while-revalidate.** 파일명에 해시를 붙이는 빌드 단계가 없어서,
+  cache-first + 수동 버전 올리기는 언젠가 잊어버리면 낡은 CSS 가 계속 남습니다. 캐시 이름
+  (`til-v1`)은 활성화 시 옛 캐시를 지우는 용도로만 씁니다.
+- **페이지는 network-first**, 실패하면 마지막으로 받아둔 같은 페이지, 그것도 없으면
+  `static/offline.html` 을 보여줍니다. htmx 조각(`/entries/...`)과 쓰기 요청은 캐시하지
+  않고 그대로 네트워크로 보냅니다.
+- 오프라인에서 보이는 페이지는 캐시된 사본이라 로그인 상태의 수정/삭제 버튼이 함께
+  남아 있을 수 있습니다. 눌러도 요청이 나가지 않을 뿐이고, 혼자 쓰는 앱이라 그대로 뒀습니다.
+
+아이콘은 `static/icon-*.png` 입니다. 다시 만들려면 `scripts/gen-icons.py` 를 실행하세요.
 
 ## 보안 메모
 

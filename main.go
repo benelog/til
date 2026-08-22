@@ -6,6 +6,7 @@ import (
 	"errors"
 	"html/template"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"os/signal"
@@ -77,6 +78,12 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Go 내장 MIME 표에 .webmanifest 가 없고, distroless 이미지에는 /etc/mime.types 도
+	// 없어서 매니페스트가 text/plain 으로 나간다. 직접 등록해둔다.
+	if err := mime.AddExtensionType(".webmanifest", "application/manifest+json"); err != nil {
+		return err
+	}
+
 	auth, err := NewAuth()
 	if err != nil {
 		return err
@@ -91,6 +98,7 @@ func run() error {
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.FileServer(http.FS(staticFS)))
+	mux.HandleFunc("GET /sw.js", serveServiceWorker)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
@@ -126,6 +134,21 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// serveServiceWorker 는 static/sw.js 를 루트 경로에서 내려준다.
+// 서비스 워커의 제어 범위(scope)는 스크립트가 놓인 경로 아래로 제한되므로,
+// 사이트 전체를 다루려면 /static/sw.js 가 아니라 /sw.js 여야 한다.
+func serveServiceWorker(w http.ResponseWriter, r *http.Request) {
+	b, err := staticFS.ReadFile("static/sw.js")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	// 워커 자체가 캐시에 굳으면 새 버전을 못 받으므로 매번 재검증하게 한다.
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write(b)
 }
 
 func logRequests(next http.Handler) http.Handler {

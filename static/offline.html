@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>오프라인 · TIL</title>
+  <!-- style.css 에 기대지 않도록 스타일을 인라인으로 둔다. -->
+  <style>
+    :root { color-scheme: light dark; --bg: #fbfaf8; --text: #22201d; --muted: #77716a; --accent: #1f6f5c; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #17161a; --text: #e8e5e0; --muted: #9a938b; --accent: #6dc4ac; }
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 2rem 1.25rem;
+      background: var(--bg);
+      color: var(--text);
+      text-align: center;
+      font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo",
+            "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+    }
+    h1 { margin: 0; font-size: 1.2rem; letter-spacing: 0.08em; }
+    p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+    button {
+      margin-top: 0.75rem;
+      padding: 0.5rem 1.1rem;
+      background: var(--accent);
+      color: var(--bg);
+      border: 0;
+      border-radius: 10px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>TIL</h1>
+  <p>연결이 끊겨 있어 아직 받아온 적 없는 화면은 보여줄 수 없습니다.</p>
+  <p>네트워크가 돌아오면 다시 시도해 주세요.</p>
+  <button onclick="location.reload()">다시 시도</button>
+</body>
+</html>
