@@ -36,8 +36,13 @@ Turso(libSQL)를 씁니다. `libsql://` 스킴은 웹소켓으로 붙지만, 앱
 
 ## 배포
 
-배포처는 **Back4app Containers** 무료 티어(256MB RAM, 0.25 CPU, 카드 불필요)이고,
-저장소는 **Turso**(aws-us-east-2), 도메인은 **Netlify 프록시**로 붙입니다.
+배포처는 **Google Cloud Run**(`asia-northeast3`, 서울)이고, 저장소는 **Turso**
+(`aws-ap-northeast-1`, 도쿄), 도메인은 **Netlify 프록시**로 붙입니다. 개인 앱 트래픽은
+Cloud Run 무료 한도(월 2M 요청 / 360,000 GiB-초) 안에서 끝나 실질 비용은 $0 입니다.
+
+> 앞서 Back4app Containers 무료 티어를 썼다가 접었습니다. 임시 URL이 30~60분 뒤
+> 만료되면서 배포가 통째로 파괴되어 상시 운영이 불가능했습니다. 아래 "다른 배포처를
+> 검토했다면" 참고.
 
 ### 1. Turso 데이터베이스
 
@@ -88,7 +93,7 @@ turso auth login
 배포하고, `proxy/_redirects` 가 모든 요청을 컨테이너로 넘깁니다.
 
 ```
-/*  https://til-xu9uffq7.b4a.run/:splat  200
+/*  https://til-788537242173.asia-northeast3.run.app/:splat  200
 ```
 
 1. Netlify에서 `benelog/til` 저장소로 새 프로젝트 생성
@@ -105,7 +110,10 @@ turso auth login
 - **Netlify Functions (Go)**: Go 함수는 Lambda 호환 모드로만 작성 가능한데, 이 모드는
   **2027년 7월 1일부로 배포가 거부**됩니다. 이주 경로인 `@netlify/aws-lambda-compat` 은
   JS 전용이라 Go 에는 대안이 없습니다.
+- **Back4app Containers**: 카드 없이 배포되지만 무료 임시 URL이 만료되면 배포가 파괴되고
+  재배포마다 주소 접미사가 바뀝니다. 상시 운영 불가.
 - **Google Cloud Run**: 무료 한도만 쓰더라도 **열려 있는 결제 계정 연결이 필수**입니다.
+  (지금은 결제 계정을 연결해 이쪽을 씁니다. 사용량은 무료 한도 안입니다.)
 - **Northflank**: 무료 티어라도 리소스 생성 시 **카드 등록을 요구**합니다. 무료 리전도
   us-central 과 europe-west 뿐입니다.
 
@@ -135,7 +143,7 @@ turso auth login
 | DELETE | `/entries/{id}` | ✅ | 빈 본문 → htmx가 항목 제거 |
 | POST | `/preview` | ✅ | 마크다운 실시간 미리보기 |
 | GET | `/sw.js` | | 서비스 워커 (루트 스코프용) |
-| GET | `/healthz` | | `ok` |
+| GET | `/healthz`, `/health` | | `ok`. Cloud Run 앞단 Google Frontend 가 **정확히 `/healthz`** 만 가로채 자체 404 를 돌려주므로 `/health` 를 함께 연다 |
 
 ## PWA
 

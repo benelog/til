@@ -99,9 +99,13 @@ func run() error {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.FileServer(http.FS(staticFS)))
 	mux.HandleFunc("GET /sw.js", serveServiceWorker)
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+	// Cloud Run 앞단의 Google Frontend 가 정확히 /healthz 경로를 가로채 자체 404 를
+	// 돌려주므로(다른 경로는 그대로 통과) 헬스 경로를 /health 로도 열어둔다.
+	health := func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
-	})
+	}
+	mux.HandleFunc("GET /healthz", health)
+	mux.HandleFunc("GET /health", health)
 
 	mux.HandleFunc("GET /{$}", s.handleIndex)
 	mux.HandleFunc("GET /login", s.handleLoginForm)

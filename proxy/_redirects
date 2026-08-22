@@ -1,4 +1,4 @@
 # til.benelog.net 으로 들어온 요청을 백엔드 컨테이너로 프록시한다.
 # 상태 코드 200 = 리다이렉트가 아닌 rewrite → 주소창은 til.benelog.net 유지.
-# 백엔드는 Back4app Containers 무료 티어.
-/*  https://til-xu9uffq7.b4a.run/:splat  200
+# 백엔드는 Cloud Run(asia-northeast3, 서울).
+/*  https://til-788537242173.asia-northeast3.run.app/:splat  200
