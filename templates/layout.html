@@ -17,6 +17,17 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="TIL">
   <script>
+    // Ctrl+Enter (macOS 는 Cmd+Enter) 로 작성/수정 폼 저장.
+    // 편집 폼은 HTMX 로 나중에 끼워 넣어지므로 document 에 위임해서 듣는다.
+    document.addEventListener('keydown', function (e) {
+      if (e.isComposing) return;
+      if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey)) return;
+      var form = e.target.closest && e.target.closest('form.editor');
+      if (!form) return;
+      e.preventDefault();
+      form.requestSubmit();
+    });
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('/sw.js').catch(function () {});

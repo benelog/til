@@ -25,7 +25,7 @@
               hx-target="#preview-{{.ID}}" hx-swap="innerHTML">{{.Body}}</textarea>
     <div class="preview md" id="preview-{{.ID}}">{{.HTML}}</div>
     <div class="row">
-      <button class="primary" type="submit">저장</button>
+      <button class="primary" type="submit" title="Ctrl+Enter">저장</button>
       <button class="link" type="button" hx-get="/entries/{{.ID}}" hx-target="#entry-{{.ID}}" hx-swap="outerHTML">취소</button>
     </div>
   </form>
@@ -39,7 +39,7 @@
             hx-post="/preview" hx-trigger="keyup changed delay:400ms"
             hx-target="#preview-new" hx-swap="innerHTML"></textarea>
   <div class="preview md" id="preview-new"></div>
-  <div class="row"><button class="primary" type="submit">저장</button></div>
+  <div class="row"><button class="primary" type="submit" title="Ctrl+Enter">저장</button></div>
 </form>
 {{end}}
 
