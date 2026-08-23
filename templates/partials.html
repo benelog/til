@@ -20,7 +20,7 @@
 <article class="entry editing" id="entry-{{.ID}}">
   <form class="editor" hx-put="/entries/{{.ID}}" hx-target="#entry-{{.ID}}" hx-swap="outerHTML">
     <input name="title" value="{{.Title}}" placeholder="제목 (선택)" autocomplete="off">
-    <textarea name="body" rows="10" spellcheck="false"
+    <textarea name="body" rows="10" spellcheck="false" autofocus
               hx-post="/preview" hx-trigger="keyup changed delay:400ms"
               hx-target="#preview-{{.ID}}" hx-swap="innerHTML">{{.Body}}</textarea>
     <div class="preview md" id="preview-{{.ID}}">{{.HTML}}</div>

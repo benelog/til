@@ -20,11 +20,13 @@
     // Ctrl+Enter (macOS 는 Cmd+Enter) 로 작성/수정 폼 저장.
     // 편집 폼은 HTMX 로 나중에 끼워 넣어지므로 document 에 위임해서 듣는다.
     document.addEventListener('keydown', function (e) {
-      if (e.isComposing) return;
       if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey)) return;
       var form = e.target.closest && e.target.closest('form.editor');
       if (!form) return;
       e.preventDefault();
+      // 한글 조합 중이면 blur 로 먼저 확정시킨다. Ctrl+Enter 는 조합 확정 키가
+      // 아니라서 그냥 두면 마지막 글자가 조합 상태로 남는다.
+      if (e.isComposing) e.target.blur();
       form.requestSubmit();
     });
 
