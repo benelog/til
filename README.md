@@ -96,8 +96,29 @@ gcloud run deploy til-tokyo --source . --region asia-northeast1 \
 > 서울 서비스 `til`(`asia-northeast3`)도 롤백용으로 남아 있습니다. 롤백을 대비해 코드가
 > 크게 바뀌면 서울 서비스에도 같은 이미지를 한 번 더 배포해 두는 편이 안전합니다.
 
-> 자동 배포는 걸려 있지 않습니다. `main` 에 푸시해도 재배포되지 않고, 위 명령을 직접
-> 실행해야 합니다. (Cloud Build 트리거를 붙이면 자동화할 수 있습니다.)
+### 자동 배포 (GitHub Actions)
+
+`main` 에 푸시하면 `.github/workflows/deploy.yml` 이 위와 같은 `gcloud run deploy
+til-tokyo --source .` 를 대신 실행합니다. `README.md`, `proxy/`, `netlify.toml` 만 바뀐
+커밋은 배포를 건너뜁니다. 롤백용 서울 서비스(`til`)는 자동 배포에서 빼 두었고, Actions
+화면에서 workflow_dispatch 로 실행할 때 `deploy_seoul` 을 켜면 함께 배포합니다.
+
+인증은 **서비스 계정 키 없이 Workload Identity Federation** 으로 합니다. GitHub 이
+발급한 OIDC 토큰을 GCP 가 직접 검증하므로 저장소에 둘 시크릿이 없습니다. 공급자에
+`assertion.repository == 'benelog/til'` 조건이 걸려 있어 다른 저장소는 이 풀로 토큰을
+받지 못합니다 (저장소가 공개라 이 조건이 특히 중요합니다). 설정은 한 번만 하면 됩니다:
+
+```bash
+./scripts/setup-gh-deploy.sh
+```
+
+풀·공급자·배포용 서비스 계정(`github-deployer@benelog.iam.gserviceaccount.com`)을 만들고
+`run.admin` / `cloudbuild.builds.editor` / `storage.admin` / `artifactregistry.writer` 와
+런타임 서비스 계정에 대한 `iam.serviceAccountUser` 를 부여합니다. 이미 있는 리소스는
+건너뛰므로 다시 실행해도 안전합니다.
+
+환경변수(`TURSO_*`, `TIL_PASSWORD`, `TZ`)는 서비스에 남아 리비전 간에 유지되므로
+워크플로는 넘기지 않습니다. **GitHub 에 저장하는 비밀값이 하나도 없습니다.**
 
 > 토큰을 붙여넣을 때 앞뒤에 `=` 나 공백이 섞이지 않도록 주의하세요. 값이 잘못되면
 > 로그에 `JWT error` 또는 `401 Unauthorized` 가 남습니다.
