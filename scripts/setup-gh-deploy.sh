@@ -7,6 +7,9 @@
 # 이미 만들어진 리소스는 건너뛰므로 다시 실행해도 안전하다.
 set -euo pipefail
 
+# gcloud 가 PATH 에 없으면 기본 설치 경로를 잡아준다.
+command -v gcloud >/dev/null 2>&1 || PATH="$HOME/google-cloud-sdk/bin:$PATH"
+
 PROJECT=benelog
 REPO=benelog/til
 POOL=github
