@@ -82,6 +82,7 @@ cat > /tmp/run-env.yaml <<EOF
 TURSO_DATABASE_URL: "..."
 TURSO_AUTH_TOKEN: "..."
 TIL_PASSWORD: "..."
+SESSION_SECRET: "..."   # openssl rand -base64 32
 TZ: "Asia/Seoul"
 EOF
 
@@ -224,12 +225,42 @@ Netlify 프록시를 쓸 때는 Netlify 가 Brotli 를 자동으로 걸어줬는
 - **Northflank**: 무료 티어라도 리소스 생성 시 **카드 등록을 요구**합니다. 무료 리전도
   us-central 과 europe-west 뿐입니다.
 
+## 인증
+
+계정 구분 없이 `TIL_PASSWORD` 하나로 쓰기 권한을 얻고, 세션은 서버에 아무것도
+저장하지 않는 서명 쿠키(`til_session`) 한 장으로 유지합니다. 값은
+`만료시각.HMAC-SHA256(키, 에폭+만료시각)` 이고 `HttpOnly` + `Secure` +
+`SameSite=Lax` 로 나갑니다. 변경 작업이 전부 POST/PUT/DELETE 라서 `SameSite=Lax`
+만으로 CSRF 가 막히므로 별도 토큰은 두지 않았습니다.
+
+**`SESSION_SECRET` 을 반드시 채우세요.** 비워두면 서명 키를 비밀번호에서
+파생하는데(`SHA256("til-session\0" + 비밀번호)`), 쿠키에는 만료시각이 평문으로
+들어 있어서 쿠키 한 장만 새어나가도 후보 비밀번호마다 해시 두 번으로 정답 여부를
+확인할 수 있습니다. 솔트도 스트레칭도 없어 GPU 대입에 그대로 노출되므로, "세션
+탈취"로 끝날 사고가 "비밀번호 유출"로 번집니다. 비어 있으면 시작할 때 경고 로그를
+남깁니다.
+
+**세션 회수**는 `SESSION_EPOCH` 로 합니다. 에폭이 서명 대상에 들어가므로 값을
+올려 재배포하면 이미 나간 쿠키가 한 번에 무효가 됩니다. `Revoke`(로그아웃)는
+브라우저 쿠키만 지울 뿐이라, 쿠키가 유출됐다면 이쪽을 써야 합니다.
+
+**온라인 대입**은 IP 당 토큰 버킷으로 막습니다(`ratelimit.go`). 연속 5회까지
+허용하고 20초에 한 번씩 회복하며, 실패 응답은 0.5초 늦춰 나갑니다. 예산이 떨어지면
+`429` 와 `Retry-After` 를 돌려줍니다. 버킷 키로 쓰는 IP 는 `X-Forwarded-For` 의
+**마지막** 항목입니다. Google Frontend 가 원래 헤더 뒤에 실제 커넥션 IP 를
+덧붙이므로, 클라이언트가 헤더를 위조해도 마지막 항목만은 진짜 주소입니다.
+
+로그인 상태에 따라 내용이 달라지는 응답에는 `Cache-Control: no-store` 와
+`Vary: Cookie` 를 붙입니다. 지금은 Cloud Run 에 직접 붙어 있어 앞단 공유 캐시가
+없지만, 롤백용 Netlify 프록시를 되살리면 프록시 캐시가 끼어들 수 있습니다.
+
 ## 환경변수
 
 | 이름 | 필수 | 설명 |
 | --- | --- | --- |
 | `TIL_PASSWORD` | ✅ | 쓰기 권한 비밀번호 |
-| `SESSION_SECRET` | | 세션 서명 키. 비우면 비밀번호에서 파생 (비밀번호를 바꾸면 기존 세션 자동 무효화) |
+| `SESSION_SECRET` | 권장 | 세션 서명 키. `openssl rand -base64 32`. 비우면 비밀번호에서 파생하는데 안전하지 않다 (아래 참고) |
+| `SESSION_EPOCH` | | 기본 `1`. 올리면 이미 나간 세션이 전부 무효가 된다 |
 | `TURSO_DATABASE_URL` | | 비우면 로컬 SQLite 파일 사용 |
 | `TURSO_AUTH_TOKEN` | | Turso 인증 토큰 |
 | `SQLITE_PATH` | | 로컬 파일 경로 (기본 `til.db`) |

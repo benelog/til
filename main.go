@@ -184,6 +184,7 @@ func (s *server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleLoginForm(w http.ResponseWriter, r *http.Request) {
 	if s.auth.LoggedIn(r) {
+		noStore(w)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
@@ -195,7 +196,24 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "잘못된 요청입니다", http.StatusBadRequest)
 		return
 	}
+	// 비밀번호를 확인하기 전에 시도 예산부터 본다. 맞든 틀리든 한 번은 쓴다.
+	if wait, ok := s.auth.AllowLogin(r); !ok {
+		log.Printf("로그인 시도 과다: %s (%s 대기)", clientIP(r), wait.Round(time.Second))
+		w.Header().Set("Retry-After", strconv.Itoa(int(wait/time.Second)+1))
+		w.WriteHeader(http.StatusTooManyRequests)
+		s.render(w, tmplLogin, "layout", map[string]any{
+			"LoggedIn": false,
+			"Error":    "로그인 시도가 너무 잦습니다. 잠시 후 다시 시도해주세요.",
+		})
+		return
+	}
 	if !s.auth.Check(r.PostFormValue("password")) {
+		// 실패 응답을 조금 늦춰 초당 시도 횟수를 떨어뜨린다.
+		select {
+		case <-time.After(loginFailDelay):
+		case <-r.Context().Done():
+			return
+		}
 		w.WriteHeader(http.StatusUnauthorized)
 		s.render(w, tmplLogin, "layout", map[string]any{
 			"LoggedIn": false,
@@ -203,12 +221,15 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	s.auth.LoginSucceeded(r)
 	s.auth.Issue(w)
+	noStore(w)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	s.auth.Revoke(w)
+	noStore(w)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -279,6 +300,7 @@ func (s *server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
+	noStore(w)
 	w.WriteHeader(http.StatusOK) // 빈 본문 → htmx 가 해당 항목을 제거한다
 }
 
@@ -287,6 +309,7 @@ func (s *server) handlePreview(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "잘못된 요청입니다", http.StatusBadRequest)
 		return
 	}
+	noStore(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if strings.TrimSpace(r.PostFormValue("body")) == "" {
 		return
@@ -336,7 +359,17 @@ func (s *server) lookup(w http.ResponseWriter, r *http.Request) (Entry, bool) {
 	return e, true
 }
 
+// noStore 는 로그인 상태에 따라 내용이 달라지는 응답을 공유 캐시가 담아두지
+// 못하게 막는다. 지금은 Cloud Run 커스텀 도메인에 직접 붙어 있어 앞단에 공유
+// 캐시가 없지만, netlify.toml 에 남겨둔 롤백 경로를 되살리면 프록시 캐시가
+// 끼어들 수 있다. Vary 는 압축 미들웨어가 넣는 값과 함께 남도록 Add 로 붙인다.
+func noStore(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Add("Vary", "Cookie")
+}
+
 func (s *server) render(w http.ResponseWriter, t *template.Template, name string, data any) {
+	noStore(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := t.ExecuteTemplate(w, name, data); err != nil {
 		log.Printf("템플릿 렌더 실패(%s): %v", name, err)
